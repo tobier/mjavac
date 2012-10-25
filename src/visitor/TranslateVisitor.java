@@ -1,0 +1,58 @@
+package visitor;
+
+import parser.tree.*;
+import parser.tree.expression.*;
+import parser.tree.expression.literals.*;
+import parser.tree.expression.operators.*;
+import parser.tree.expression.operators.binary.*;
+import parser.tree.statement.*;
+import parser.tree.types.*;
+
+public interface TranslateVisitor {
+	public ir.translate.Expr visit(Program n);
+	public ir.translate.Expr visit(MainClass n);
+	public ir.translate.Expr visit(ClassDecl n);
+	public ir.translate.Expr visit(ClassBody n);
+	public ir.translate.Expr visit(VarDecl n);
+	public ir.translate.Expr visit(MethodDecl n);
+	public ir.translate.Expr visit(Formal n);
+	public ir.translate.Expr visit(Id n);
+	public ir.translate.Expr visit(New n);
+	public ir.translate.Expr visit(NewIntArray n);
+	public ir.translate.Expr visit(IdLiteral n);
+	public ir.translate.Expr visit(IntLiteral n);
+	public ir.translate.Expr visit(BooleanLiteral n);
+	public ir.translate.Expr visit(ArrayLength n);
+	public ir.translate.Expr visit(ArrayLookup n);
+	public ir.translate.Expr visit(Call n);
+	public ir.translate.Expr visit(NegExpr n);
+	public ir.translate.Expr visit(AddExpr n);
+	public ir.translate.Expr visit(AndExpr n);
+	public ir.translate.Expr visit(EqExpr n);
+	public ir.translate.Expr visit(GeqExpr n);
+	public ir.translate.Expr visit(GreaterExpr n);
+	public ir.translate.Expr visit(LeqExpr n);
+	public ir.translate.Expr visit(LessExpr n);
+	public ir.translate.Expr visit(MulExpr n);
+	public ir.translate.Expr visit(NeqExpr n);
+	public ir.translate.Expr visit(OrExpr n);
+	public ir.translate.Expr visit(SubExpr n);
+	public ir.translate.Expr visit(Assign n);
+	public ir.translate.Expr visit(AssignIndexedElement n);
+	public ir.translate.Expr visit(Block n);
+	public ir.translate.Expr visit(If n);
+	public ir.translate.Expr visit(IfElse n);
+	public ir.translate.Expr visit(Print n);
+	public ir.translate.Expr visit(Return n);
+	public ir.translate.Expr visit(While n);
+	public ir.translate.Expr visit(BoolType n);
+	public ir.translate.Expr visit(IdType n);
+	public ir.translate.Expr visit(IntArrayType n);
+	public ir.translate.Expr visit(IntType n);
+	public ir.translate.Expr visit(This n);
+	public ir.translate.Expr visit(ParensExpr n);
+	public ir.translate.Expr visit(LongLiteral n);
+	public ir.translate.Expr visit(LongType n);
+	public ir.translate.Expr visit(LongArrayType n);
+	public ir.translate.Expr visit(NewLongArray n);
+}

@@ -1,0 +1,38 @@
+<project name="mjavac" default="dist" basedir=".">
+  <!-- set global properties for this build -->
+  <property name="src" location="src"/>
+  <property name="build" location="bin"/>
+
+  
+  <target name="init">
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="compile" depends="init">
+    <javacc
+	target="src/parser/MiniJava.jj"
+	outputdirectory="src/parser/"
+	javacchome="lib"
+	static="false" />
+    <javac srcdir="${src}" destdir="${build}">
+      <classpath id="classpath" description="The default classpath.">
+	<pathelement path="${classpath}"/>
+	<fileset dir="lib">
+	  <include name="commons-io-2.3.jar"/>
+	</fileset>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="dist" depends="compile">
+    <jar jarfile="mjc.jar" basedir="${build}" />
+  </target>
+
+  <target name="clean">
+    <delete dir="${build}"/>
+    <delete file="mjc.jar"/>
+    <delete>
+      <fileset dir="${src}" includes="parser/*.java"/>
+    </delete>
+  </target>
+</project>

@@ -1,0 +1,58 @@
+package visitor;
+
+import parser.tree.*;
+import parser.tree.expression.*;
+import parser.tree.expression.literals.*;
+import parser.tree.expression.operators.*;
+import parser.tree.expression.operators.binary.*;
+import parser.tree.statement.*;
+import parser.tree.types.*;
+
+public interface TypeVisitor {
+	public Type visit(Program n);
+	public Type visit(MainClass n);
+	public Type visit(ClassDecl n);
+	public Type visit(ClassBody n);
+	public Type visit(VarDecl n);
+	public Type visit(MethodDecl n);
+	public Type visit(Formal n);
+	public Type visit(Id n);
+	public Type visit(New n);
+	public Type visit(NewIntArray n);
+	public Type visit(IdLiteral n);
+	public Type visit(IntLiteral n);
+	public Type visit(BooleanLiteral n);
+	public Type visit(ArrayLength n);
+	public Type visit(ArrayLookup n);
+	public Type visit(Call n);
+	public Type visit(NegExpr n);
+	public Type visit(AddExpr n);
+	public Type visit(AndExpr n);
+	public Type visit(EqExpr n);
+	public Type visit(GeqExpr n);
+	public Type visit(GreaterExpr n);
+	public Type visit(LeqExpr n);
+	public Type visit(LessExpr n);
+	public Type visit(MulExpr n);
+	public Type visit(NeqExpr n);
+	public Type visit(OrExpr n);
+	public Type visit(SubExpr n);
+	public Type visit(Assign n);
+	public Type visit(AssignIndexedElement n);
+	public Type visit(Block n);
+	public Type visit(If n);
+	public Type visit(IfElse n);
+	public Type visit(Print n);
+	public Type visit(Return n);
+	public Type visit(While n);
+	public Type visit(BoolType n);
+	public Type visit(IdType n);
+	public Type visit(IntArrayType n);
+	public Type visit(IntType n);
+	public Type visit(This n);
+	public Type visit(ParensExpr n);
+	public Type visit(LongLiteral n);
+	public Type visit(LongType n);
+	public Type visit(LongArrayType n);
+	public Type visit(NewLongArray n);
+}

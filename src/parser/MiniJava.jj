@@ -1,0 +1,514 @@
+/**
+ * Grammar for the MiniJava language, as defined by http://www.csc.kth.se/utbildning/kth/kurser/DD2488/komp12/project/newgrammar.pdf,
+ * in JavaCC format.
+ *
+ * Copyright (c) 2012 Tobias Eriksson, Sebastian Sjögren
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files
+ * (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify,
+ * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ * LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+ * IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+options
+{
+  JDK_VERSION = "1.6";
+  static = false;
+}
+
+PARSER_BEGIN(Parser)
+package parser;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.io.PrintStream;
+
+import parser.tree.*;
+import parser.tree.expression.*;
+import parser.tree.expression.literals.*;
+import parser.tree.expression.operators.*;
+import parser.tree.expression.operators.binary.*;
+import parser.tree.statement.*;
+import parser.tree.types.*;
+
+public class Parser
+{
+	private Program p;
+	public static PrintStream out = System.out; // default
+  
+  public void Parse() throws ParseException
+  {
+		p = this.Program();
+  }
+
+  public void printTree()  {	p.print("", true);
+  }
+
+  public Node getRoot()  {	return p;
+  }
+}
+PARSER_END(Parser)
+
+/*****************
+ * LEXICAL RULES *
+ *****************/
+ SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+}
+
+TOKEN : /* RESERVED WORDS AND LITERALS */
+{
+ < CLASS    : "class" >
+| < PUBLIC  : "public" >
+| < STATIC  : "static" >
+| < VOID    : "void" >
+| < STRING  : "String">
+| < INT     : "int" >
+| < LONG    : "long" >
+| < BOOLEAN : "boolean">
+| < IF      : "if" >
+| < ELSE    : "else" >
+| < WHILE   : "while" >
+| < PRINT   : "System.out.println" >
+| < LENGTH  : "length" >
+| < TRUE    : "true" >
+| < FALSE   : "false" >
+| < THIS    : "this" >
+| < NEW     : "new" >
+| < MAIN	: "main" >
+| < RETURN  : "return" >
+| < INT_LIT : "0" | ["1"-"9"](["0"-"9"])* >
+| < LONG_LIT : "0" | ["1"-"9"](["0"-"9"])* ["l", "L"] >
+}
+
+TOKEN : /* SEPARATORS */
+{
+  < LPAREN   : "(" >
+| < RPAREN   : ")" >
+| < LBRACE   : "{" >
+| < RBRACE   : "}" >
+| < LBRACKET : "[" >
+| < RBRACKET : "]" >
+| < SEMICOLON: ";" >
+| < COMMA    : "," >
+| < DOT      : "." >
+| < BANG      : "!" >
+}
+
+TOKEN : /* IDENTIFIERS */
+{
+  < IDENTIFIER : < LETTER > (< DIGIT >|< LETTER >)* >
+| < #LETTER : ["a"-"z", "A"-"Z", "_"] >
+| < #DIGIT : "0" | ["1"-"9"](["0"-"9"])* >
+}
+
+TOKEN : /* OPERATORS */
+{
+  < ASSIGN : "=" >
+| < AND    : "&&" >
+| < OR     : "||" >
+| < LT     : "<" >
+| < ADD    : "+" >
+| < SUB    : "-" >
+| < MUL    : "*" >
+| < LEQ    : "<=" >
+| < GT     : ">" >
+| < GEQ    : ">=" >
+| < EQ     : "==" >
+| < NEQ    : "!=" >
+}
+
+/* Multi-line comments */
+MORE: { "/*" : IN_MULTI_LINE_COMMENT }< IN_MULTI_LINE_COMMENT > MORE : { < ~[] > }
+< IN_MULTI_LINE_COMMENT > SKIP : { "*/" : DEFAULT }
+
+// Single line comment
+MORE : { "//" : IN_SINGLE_LINE_COMMENT } 
+< IN_SINGLE_LINE_COMMENT > SPECIAL_TOKEN : { < SINGLE_LINE_COMMENT: "\n"|"\r"|"\r\n" > : DEFAULT }
+< IN_SINGLE_LINE_COMMENT > MORE : {<  ~[] > }  
+
+/********************************
+ * MINIJAVA GRAMMAR STARTS HERE *
+ ********************************/
+
+/* Top level production */
+Program Program() :
+{
+  MainClass mc;
+  ArrayList<ClassDecl> cdl;
+  ClassDecl c;
+}
+{
+  	/* The first class must be the main class */
+  	mc=MainClass()
+
+	/* Then zero or more other class declarations */
+	cdl = ClassDeclList()
+
+	/* And nothing else can be in the file */
+  	< EOF >
+  	{ return new Program(mc, cdl); }
+}
+
+MainClass MainClass() :
+{ Id id; ArrayList<VarDecl> vars; ArrayList<Stmt> stmts;}
+{
+  <CLASS> id=Id()
+  < LBRACE >
+  /* The main method signature */
+  	< PUBLIC > < STATIC > < VOID > < MAIN > < LPAREN > < STRING > < LBRACKET > < RBRACKET > Id() < RPAREN >
+
+	/* And then the main method body */
+	< LBRACE >
+		vars=Vars() stmts=Stmts()
+	< RBRACE >
+  < RBRACE >
+
+  { return new MainClass(id, vars, stmts); }
+}
+
+ArrayList<ClassDecl> ClassDeclList() :
+{ ArrayList<ClassDecl> cdl = new ArrayList<ClassDecl>(); ClassDecl c; }
+{	(c = ClassDecl() { cdl.add(c); })*
+	{ return cdl.size() > 0 ? cdl : null; }
+}
+
+ClassDecl ClassDecl() :
+{ Id id; ClassBody cb; }
+{
+  <CLASS> id=Id() < LBRACE > cb = ClassBody() < RBRACE >
+
+  { return new ClassDecl(id, cb); }
+}
+
+/* Class Body */
+ClassBody ClassBody() :
+{ ArrayList<VarDecl> vdl; ArrayList<MethodDecl> mdl;}
+{
+  vdl = VarDeclList() mdl=MethodDeclList()
+
+  { return (vdl == null) && (mdl == null) ? null : new ClassBody(vdl, mdl); }
+}
+
+ArrayList<VarDecl> VarDeclList() :
+{
+  ArrayList<VarDecl> vdl = new ArrayList<VarDecl>(); VarDecl v;}
+{
+  (v = VarDecl() { vdl.add(v); })*  { return vdl.size() > 0 ? vdl : null; }
+}
+
+/* Variable declaration */
+VarDecl VarDecl() :
+{ Type type; Id id;}
+{
+	type=Type() id=Id() < SEMICOLON >
+	{ return new VarDecl(type, id);}
+}
+
+ArrayList<MethodDecl> MethodDeclList() :
+{
+  ArrayList<MethodDecl> mdl = new ArrayList<MethodDecl>(); MethodDecl m;
+}
+{
+  (m = MethodDecl() { mdl.add(m); })*
+  { return mdl.size() > 0 ? mdl : null; }
+}
+
+/* Method declaration */
+MethodDecl MethodDecl() :
+{Type returnType; Id id; ArrayList<Formal> fl; ArrayList<VarDecl> vars; ArrayList<Stmt> stmts; Return returnStmt;}
+{
+  < PUBLIC > returnType=Type() id=Id() < LPAREN > fl=FormalList() < RPAREN >
+  < LBRACE >
+	vars=Vars() stmts=Stmts()
+	{Expr e; } < RETURN > { int returnLine = token.beginLine; } e=Expr() < SEMICOLON > { returnStmt = new Return(e); returnStmt.line = returnLine; }
+  < RBRACE >
+
+  { return new MethodDecl(returnType, id, fl, vars, stmts, returnStmt); }
+}
+
+/* Formal list */
+ArrayList<Formal> FormalList() :
+{
+  ArrayList<Formal> fl = new ArrayList<Formal>();
+  Formal f;
+  Type t;
+  Id id;
+}
+{
+	t=Type() id=Id() { f = new Formal(t,id); fl.add(f);}
+	(f=FormalRest() { fl.add(f);})*
+	{ return fl;}
+| { return null;}
+}
+
+ArrayList<VarDecl> Vars() :
+{
+  ArrayList<VarDecl> vars = new ArrayList<VarDecl>();
+  VarDecl v;}
+{
+ (LOOKAHEAD(2) v=VarDecl() { vars.add(v);})*
+
+ {
+   return vars.size() > 0 ? vars : null; }}
+
+ArrayList<Stmt> Stmts() :
+{
+  ArrayList<Stmt> stmts = new ArrayList<Stmt>();
+  Stmt s;
+}
+{
+ (s=Stmt() { stmts.add(s);})*
+
+ {
+   return stmts.size() > 0 ? stmts : null;
+ }
+}
+
+Formal FormalRest() :
+{
+  Formal f;
+  Type t;
+  Id id;
+} 
+{
+  < COMMA > t=Type() id=Id() { f = new Formal(t,id);}
+  { return f;}
+}
+
+
+/* Identifier rule, may come up with something better ... */
+Id Id() :
+{ String tokenstr; }
+{
+	(< IDENTIFIER > {tokenstr = token.toString() ;} | < MAIN > { tokenstr = "main";} )
+
+	{ return new Id(tokenstr);}
+}
+
+/* Type */
+Type Type() :
+{Type t; Id i;}
+{
+  	(  	  LOOKAHEAD(2)
+  	< INT > < LBRACKET > < RBRACKET > { t = new IntArrayType(); }
+| 	< INT > { t = new IntType(); }
+/*|   LOOKAHEAD(2) < LONG > < LBRACKET > < RBRACKET > { t = new LongArrayType(); }
+|   < LONG > { t = new LongType(); }*/
+| 	< BOOLEAN > { t = new BoolType(); }  
+| 	i=Id() { t = new IdType(i); })
+
+  { return t; }
+}
+
+Block Block() :
+{ Stmt s; ArrayList<Stmt> stmts;}
+{
+  stmts=Stmts()
+
+  { return new Block(stmts); }
+}
+
+/* Statement */
+Stmt Stmt() :
+{ Stmt s; int line = 0;}
+{
+(	< LBRACE > s=Block() < RBRACE >
+| { Expr boolExpr; Stmt ifStmt, elseStmt = null; }
+	< IF > < LPAREN > boolExpr=Expr() < RPAREN > ifStmt=Stmt() [ LOOKAHEAD(2) < ELSE > elseStmt=Stmt() ]
+	{
+	  if(elseStmt != null)	  {
+	    s = new IfElse(new If(boolExpr, ifStmt), elseStmt);	  } else {
+	    s = new If(boolExpr, ifStmt);	  }
+	}
+| 	{ Expr boolExp; }
+	< WHILE > < LPAREN > boolExp=Expr() < RPAREN > s=Stmt()
+	{
+	  s = new While(boolExp, s);	}
+| { Expr printExpr;}
+
+	< PRINT > { line = token.beginLine; }< LPAREN > printExpr=Expr() < RPAREN > < SEMICOLON >
+	{
+		s = new Print(printExpr);	}
+|	LOOKAHEAD(2)
+	{Id id; Expr assignExpr;}
+	id=Id() <  ASSIGN > { line = token.beginLine; } assignExpr=Expr() < SEMICOLON >
+	{
+	  	s = new Assign(id, assignExpr);	}
+|	{Id id; Expr index, assignExpr;}
+	id=Id() < LBRACKET > index=Expr() < RBRACKET > < ASSIGN > assignExpr=Expr() < SEMICOLON >
+	{
+	  	s = new AssignIndexedElement(id, index, assignExpr);
+	}
+)
+	{ s.line = line; return s;}
+}
+
+/*********************** 
+ * Expressions with || *
+ ***********************/
+Expr Expr() :
+{ Expr e; Expr eprim; }
+{
+  e=A() { e.line = token.beginLine; } eprim=Exprprim(e)
+  { return eprim != null ? eprim: e; }
+}
+
+Expr Exprprim(Expr left) :
+{ Expr right, eprim; }
+{
+  < OR > right=A() eprim = Exprprim(right) { return new OrExpr(left, eprim == null ? right : eprim); }
+| /* no match, return null */ { return null;}}
+/***********************
+ * Expressions with && *
+ ***********************/
+Expr A() :
+{ Expr e, eprim;}
+{
+  e=B() { e.line = token.beginLine; } eprim=Aprim(e)
+  { return eprim != null ? eprim: e; }}
+
+Expr Aprim(Expr left) :
+{ Expr right, eprim; }
+{
+  < AND > right=B() eprim = Aprim(right)  { return new AndExpr(left, eprim == null ? right : eprim); }
+| /* no match, return null */ { return null;}}
+
+/******************************
+ * Expressions with == and != *
+ ******************************/
+Expr B() :
+{ Expr e, eprim;}
+{
+  e=C() { e.line = token.beginLine; } eprim=Bprim(e)
+  { return eprim != null ? eprim: e; }}
+
+Expr Bprim(Expr left) :
+{ Expr right, eprim; }
+{
+  < EQ > right=C() eprim=Bprim(right) { return new EqExpr(left, eprim == null ? right : eprim); }
+| < NEQ > right=C() eprim=Bprim(right) { return new NeqExpr(left, eprim == null ? right : eprim); }
+| /* no match, return null */ { return null;}}
+
+/************************************
+ * Expressions with >, >=, < and <= *
+ ************************************/
+Expr C() :
+{ Expr e, eprim; }
+{
+  e=D() { e.line = token.beginLine; } eprim=Cprim(e)
+  { return eprim != null ? eprim: e; }
+}
+
+Expr Cprim(Expr left) :
+{ Expr right, eprim; }
+{
+  < LT > right=D() eprim=Cprim(right) { return new LessExpr(left, eprim == null ? right : eprim); }
+| < LEQ > right=D() eprim=Cprim(right) { return new LeqExpr(left, eprim == null ? right : eprim); }
+| < GT > right=D() eprim=Cprim(right) { return new GreaterExpr(left, eprim == null ? right : eprim); }
+| < GEQ > right=D() eprim=Cprim(right) { return new GeqExpr(left, eprim == null ? right : eprim); }
+| /* no match, return null */ { return null;}}
+
+/****************************
+ * Expressions with + and - *
+ ****************************/
+Expr D() :
+{ Expr e, eprim; }
+{
+  e=E() { e.line = token.beginLine; } eprim=Dprim(e)
+  { return eprim != null ? eprim: e; }}
+
+Expr Dprim(Expr left) :
+{ Expr e, right, eprim; int line; }
+{
+  < SUB > { line = token.beginLine; } right=E() { e = new SubExpr(left, right); e.line = line; } eprim = Dprim(e) { return eprim != null ? eprim : e; }
+| < ADD > { line = token.beginLine; } right=E() { e = new AddExpr(left, right); e.line = line; } eprim = Dprim(e) { return eprim != null ? eprim : e; }
+| /* no match, return null */ { return null;}}
+
+/***************************************
+ * Expressions with * (multiplication) *
+ ***************************************/
+Expr E() :
+{ Expr e, eprim; }
+{
+  e=F() eprim=Eprim(e)
+  { return eprim != null ? eprim : e ;}}
+
+Expr Eprim(Expr left) :
+{ Expr right, eprim; }
+{
+  < MUL > right=F() eprim=Eprim(right) { return new MulExpr(left, eprim == null ? right : eprim); }
+| /* no match, return null */ { return null;}}
+
+
+/**********************************************
+ * Expressions that have ! in them *
+ **********************************************/
+Expr F() :
+{ Expr e; Id i; int line;}
+{  
+  < BANG > {line = token.beginLine; } e=F() { NegExpr neg = new NegExpr(e); neg.line = line; return neg; }
+|  e=G() { return e;}
+}
+
+/**********************************************
+ * Expressions that have ., [] and () in them *
+ **********************************************/
+Expr G() :
+{ Expr e, eprim; }
+{
+  e=X() eprim=Gprim(e)
+  { return eprim != null ? eprim : e ;}
+}
+
+Expr Gprim(Expr left) :
+{ Expr e, eprim;}
+{
+  LOOKAHEAD(2) < DOT > < LENGTH > { e= new ArrayLength(left); } eprim=Gprim(e) { return eprim == null ? e : eprim; }
+| { Id i; ArrayList<Expr> args; } < DOT > i=Id() < LPAREN > args=ExprList() < RPAREN > { e = new Call(left, i, args); } eprim=Gprim(e) { return eprim == null ? e : eprim; }
+| { Expr right; }< LBRACKET > right=Expr() < RBRACKET > { e = new ArrayLookup(left, right); } eprim=Gprim(e) { return eprim == null ? e : eprim; }
+| /* no match, return null */ { return null;}  
+}
+
+/**********************************************
+ * Expressions that have the highest priority *
+ **********************************************/
+Expr X() :
+{ Expr e, sube; Id i; int line; }
+{
+  < INT_LIT > { IntLiteral intlit = new IntLiteral(new BigInteger(token.toString())); intlit.line = token.beginLine; return intlit;}
+/*| < LONG_LIT > { LongLiteral longlit = new LongLiteral(new BigInteger(token.toString().substring(0,token.toString().length() - 1))); longlit.line = token.beginLine; return longlit;}*/
+| (< TRUE >|< FALSE >) { BooleanLiteral boolit = new BooleanLiteral(Boolean.parseBoolean(token.toString())); boolit.line = token.beginLine; return boolit;}
+| i=Id() { IdLiteral idlit = new IdLiteral(i); idlit.line = token.beginLine; return idlit; }
+| < THIS > { This thislit = new This(); thislit.line = token.beginLine; return thislit; }
+| < LPAREN > {line = token.beginLine; } e=Expr() < RPAREN > { e.line = line; return new ParensExpr(e); }
+| < NEW > {line = token.beginLine; }
+	(< INT > < LBRACKET > e=Expr() < RBRACKET > { NewIntArray newarray = new NewIntArray(e); newarray.line = line; return newarray; }
+	| i=Id() < LPAREN > < RPAREN >{ New newid = new New(i); newid.line=line; return newid;})}
+
+/*******************
+ * Expression list *
+ *******************/
+ArrayList<Expr> ExprList() :
+{ Expr e; ArrayList<Expr> el = new ArrayList<Expr>();}
+{
+  e=Expr() { el.add(e); }(e=ExprRest() { el.add(e);} )* { return el; }
+|{ return null;}
+}
+
+Expr ExprRest() :
+{ Expr e;}
+{
+  < COMMA > e=Expr()
+  { return e; }
+}
